@@ -5,7 +5,7 @@ use ImAuthenticator\Security;
 use ImAuthenticator\Web;
 
 $services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);
-$params=$_GET;$parId=null;
+$params=$_GET;$parId=null;$app=null;$jarmEnabled=false;$redirectUri='';$state=null;
 try{
  if(isset($_GET['request_uri'])){
   $requestUri=(string)$_GET['request_uri'];
@@ -13,12 +13,23 @@ try{
   if(!$par)throw new RuntimeException('invalid_request_uri');
   $decoded=json_decode((string)$par['params_json'],true);if(!is_array($decoded))throw new RuntimeException('invalid_request_uri');$params=$decoded;$parId=(int)$par['id'];
  }
- $clientId=(string)($params['client_id']??'');$redirectUri=(string)($params['redirect_uri']??'');$state=isset($params['state'])?(string)$params['state']:null;
+ $clientId=(string)($params['client_id']??$_GET['client_id']??'');
  $app=$oidc->client($clientId);
  if(!$app){http_response_code(400);Web::page('Błąd OAuth','<section class="card narrow"><h1>Nieprawidłowy klient</h1><div class="code">invalid_client</div></section>');}
+ $policy=$oauthProofs->policy($app);$jarmEnabled=(bool)$policy['jarm_enabled'];
+ if((bool)$policy['require_par']&&$parId===null)throw new RuntimeException('pushed_authorization_request_required');
+ $requestJwt=(string)($params['request']??$_GET['request']??'');
+ $jarClaims=$oauthProofs->validateJar($app,$requestJwt);
+ if($jarClaims!==[]){foreach(['redirect_uri','response_type','scope','state','nonce','code_challenge','code_challenge_method','prompt','max_age'] as $key)if(array_key_exists($key,$jarClaims))$params[$key]=$jarClaims[$key];}
+ $redirectUri=(string)($params['redirect_uri']??'');$state=isset($params['state'])?(string)$params['state']:null;
  if(!$oidc->redirectAllowed((int)$app['id'],$redirectUri)){http_response_code(400);Web::page('Błąd OAuth','<section class="card narrow"><h1>Nieprawidłowy Redirect URI</h1><p>Żądanie zostało zatrzymane bez przekierowania do klienta.</p><div class="code">invalid_request</div></section>');}
- $fail=static function(string $error,?string $description=null)use($redirectUri,$state):never{$query=['error'=>$error];if($description)$query['error_description']=$description;if($state!==null)$query['state']=$state;Web::redirect($redirectUri.(str_contains($redirectUri,'?')?'&':'?').http_build_query($query));};
+ $fail=static function(string $error,?string $description=null)use($redirectUri,$state,$jarmEnabled,$oauthProofs,$app):never{
+   if($jarmEnabled&&is_array($app)){$claims=['error'=>$error];if($description)$claims['error_description']=$description;if($state!==null)$claims['state']=$state;$response=$oauthProofs->jarm($app,$claims);Web::redirect($redirectUri.(str_contains($redirectUri,'?')?'&':'?').http_build_query(['response'=>$response]));}
+   $query=['error'=>$error];if($description)$query['error_description']=$description;if($state!==null)$query['state']=$state;Web::redirect($redirectUri.(str_contains($redirectUri,'?')?'&':'?').http_build_query($query));
+ };
  if((string)($params['response_type']??'')!=='code')$fail('unsupported_response_type');
+ $challenge=(string)($params['code_challenge']??'');$challengeMethod=(string)($params['code_challenge_method']??'');
+ if(($app['client_type']==='public'||(bool)$policy['require_pkce'])&&($challenge===''||$challengeMethod!=='S256'))$fail('invalid_request','PKCE S256 is required');
  $user=$auth->currentUser();
  if(!$user)Web::redirect('/login?return='.rawurlencode($_SERVER['REQUEST_URI']??'/dashboard'));
  $requiredActions->refreshAutomaticCompletions((int)$user['id']);$pending=$requiredActions->pending((int)$user['id']);if($pending!==[]){$_SESSION['required_action_return']=$_SERVER['REQUEST_URI']??'/dashboard';Web::redirect('/account/required-actions');}
@@ -30,12 +41,13 @@ try{
  if($consents->required($app)&&!$consents->hasConsent((int)$user['id'],(int)$app['id'],$scopes)){
    $consentToken=Security::randomToken(24);$_SESSION['pending_consents'][$consentToken]=['created_at'=>time(),'authorize_uri'=>$_SERVER['REQUEST_URI']??'/oauth/authorize','application_id'=>(int)$app['id'],'scopes'=>$scopes,'redirect_uri'=>$redirectUri,'state'=>$state];Web::redirect('/oauth/consent?token='.rawurlencode($consentToken));
  }
- $code=$oidc->createAuthorizationCode($app,(int)$user['id'],$redirectUri,$scopes,isset($params['code_challenge'])?(string)$params['code_challenge']:null,isset($params['code_challenge_method'])?(string)$params['code_challenge_method']:null,isset($params['nonce'])?(string)$params['nonce']:null);
+ $code=$oidc->createAuthorizationCode($app,(int)$user['id'],$redirectUri,$scopes,$challenge!==''?$challenge:null,$challengeMethod!==''?$challengeMethod:null,isset($params['nonce'])?(string)$params['nonce']:null);
  if($parId!==null){$updated=$db->execute('UPDATE oauth_par_requests SET used_at=NOW() WHERE id=? AND used_at IS NULL',[$parId]);if($updated!==1)throw new RuntimeException('invalid_request_uri');}
  $consents->touch((int)$user['id'],(int)$app['id']);
+ if($jarmEnabled){$responseClaims=['code'=>$code];if($state!==null)$responseClaims['state']=$state;$response=$oauthProofs->jarm($app,$responseClaims);Web::redirect($redirectUri.(str_contains($redirectUri,'?')?'&':'?').http_build_query(['response'=>$response]));}
  $query=['code'=>$code];if($state!==null)$query['state']=$state;Web::redirect($redirectUri.(str_contains($redirectUri,'?')?'&':'?').http_build_query($query));
 }catch(RuntimeException $e){
  $error=$e->getMessage();
- if(isset($fail)&&is_callable($fail)&&isset($redirectUri)&&$redirectUri!=='')$fail(in_array($error,['access_denied','interaction_required','invalid_scope','invalid_request'],true)?$error:'invalid_request');
+ if(isset($fail)&&is_callable($fail)&&$redirectUri!=='')$fail(in_array($error,['access_denied','interaction_required','invalid_scope','invalid_request','request_object_required','pushed_authorization_request_required'],true)?$error:'invalid_request');
  http_response_code(400);Web::page('Błąd OAuth','<section class="card narrow"><h1>Błąd żądania autoryzacyjnego</h1><div class="code">'.Web::e($error).'</div></section>');
 }
