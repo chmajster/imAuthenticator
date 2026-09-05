@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 $services = require dirname(__DIR__) . '/src/bootstrap.php';
 $oidc = $services['oidc'];
+$oauthAdvanced = $services['oauthAdvanced'];
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -23,6 +24,7 @@ try {
         'authorization_code' => $oidc->exchangeAuthorizationCode($_POST, $authHeader),
         'refresh_token' => $oidc->refresh($_POST, $authHeader),
         'client_credentials' => $oidc->clientCredentials($_POST, $authHeader),
+        'urn:ietf:params:oauth:grant-type:device_code' => $oauthAdvanced->deviceToken($_POST, $authHeader),
         default => throw new RuntimeException('unsupported_grant_type'),
     };
 
