@@ -18,19 +18,28 @@ final class ApplicationAccessService
         $user = $this->db->one('SELECT id,enabled FROM users WHERE id=?', [$userId]);
         if (!$user || !(bool)$user['enabled']) return false;
 
+        $direct = $this->directUserOverride($userId, (int)$app['id']);
+        if ($direct !== null) return $direct;
+
         return match ($app['access_policy']) {
             'all' => true,
-            'users' => $this->directUserAccess($userId, (int)$app['id']),
             'groups' => $this->groupAccess($userId, (int)$app['id']),
             'roles' => $this->systemRoleAccess($userId, (int)$app['id']),
-            'mixed' => $this->directUserAccess($userId, (int)$app['id']) || $this->groupAccess($userId, (int)$app['id']) || $this->systemRoleAccess($userId, (int)$app['id']),
+            'mixed' => $this->groupAccess($userId, (int)$app['id']) || $this->systemRoleAccess($userId, (int)$app['id']),
+            'users', 'none' => false,
             default => false,
         };
     }
 
     public function directUserAccess(int $userId, int $applicationId): bool
     {
-        return $this->db->one('SELECT 1 FROM application_users WHERE application_id=? AND user_id=? AND enabled=1', [$applicationId, $userId]) !== null;
+        return $this->directUserOverride($userId, $applicationId) === true;
+    }
+
+    private function directUserOverride(int $userId, int $applicationId): ?bool
+    {
+        $row = $this->db->one('SELECT enabled FROM application_users WHERE application_id=? AND user_id=?', [$applicationId, $userId]);
+        return $row === null ? null : (bool)$row['enabled'];
     }
 
     private function groupAccess(int $userId, int $applicationId): bool
@@ -57,13 +66,13 @@ final class ApplicationAccessService
 
     public function revokeUser(int $applicationId, int $userId, int $actorUserId): void
     {
-        $this->db->transaction(function (Database $db) use ($applicationId, $userId): void {
-            $db->execute('UPDATE application_users SET enabled=0 WHERE application_id=? AND user_id=?', [$applicationId, $userId]);
+        $this->db->transaction(function (Database $db) use ($applicationId, $userId, $actorUserId): void {
+            $db->execute('INSERT INTO application_users(application_id,user_id,enabled,created_by) VALUES(?,?,0,?) ON DUPLICATE KEY UPDATE enabled=0,created_by=VALUES(created_by),created_at=CURRENT_TIMESTAMP', [$applicationId, $userId, $actorUserId]);
             $db->execute('UPDATE oauth_refresh_tokens SET revoked_at=COALESCE(revoked_at,CURRENT_TIMESTAMP) WHERE application_id=? AND user_id=?', [$applicationId, $userId]);
             $db->execute('UPDATE oauth_access_tokens SET revoked_at=COALESCE(revoked_at,CURRENT_TIMESTAMP) WHERE application_id=? AND user_id=?', [$applicationId, $userId]);
             $db->execute('UPDATE oidc_sessions SET revoked_at=COALESCE(revoked_at,CURRENT_TIMESTAMP) WHERE application_id=? AND user_id=?', [$applicationId, $userId]);
         });
-        $this->audit->write('application.user.revoked', 'success', $actorUserId, $userId, $applicationId);
+        $this->audit->write('application.user.revoked', 'success', $actorUserId, $userId, $applicationId, 'explicit deny override');
     }
 
     public function revokeApplication(int $applicationId, int $actorUserId, string $reason = 'application disabled'): void
