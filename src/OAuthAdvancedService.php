@@ -25,9 +25,10 @@ final class OAuthAdvancedService
         $userCode = strtoupper(substr(bin2hex(random_bytes(4)), 0, 4) . '-' . substr(bin2hex(random_bytes(4)), 0, 4));
         $expiresIn = 900;
         $interval = 5;
+        $expiresAt = date('Y-m-d H:i:s', time() + $expiresIn);
         $this->db->execute(
-            'INSERT INTO oauth_device_codes(application_id,device_code_hash,user_code_hash,user_code_display,scopes,interval_seconds,expires_at) VALUES(?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL ? SECOND))',
-            [(int)$app['id'], Security::tokenHash($deviceCode), Security::tokenHash(strtoupper($userCode)), $userCode, implode(' ', $scopes), $interval, $expiresIn]
+            'INSERT INTO oauth_device_codes(application_id,device_code_hash,user_code_hash,user_code_display,scopes,interval_seconds,expires_at) VALUES(?,?,?,?,?,?,?)',
+            [(int)$app['id'], Security::tokenHash($deviceCode), Security::tokenHash($userCode), $userCode, implode(' ', $scopes), $interval, $expiresAt]
         );
         $issuer = $this->jwt->issuer();
         $this->audit->write('oauth.device.started', 'success', null, null, (int)$app['id']);
@@ -45,16 +46,21 @@ final class OAuthAdvancedService
     {
         $normalized = strtoupper(trim($userCode));
         return $this->db->transaction(function () use ($normalized, $userId, $context): array {
-            $row = $this->db->one('SELECT dc.*,a.* FROM oauth_device_codes dc JOIN applications a ON a.id=dc.application_id WHERE dc.user_code_hash=? FOR UPDATE', [Security::tokenHash($normalized)]);
+            $row = $this->db->one(
+                "SELECT dc.id AS device_code_id,dc.application_id,dc.status,dc.expires_at,a.name AS application_name,a.enabled,a.deleted_at
+                 FROM oauth_device_codes dc JOIN applications a ON a.id=dc.application_id
+                 WHERE dc.user_code_hash=? FOR UPDATE",
+                [Security::tokenHash($normalized)]
+            );
             if (!$row || $row['status'] !== 'pending' || strtotime((string)$row['expires_at']) <= time() || !(bool)$row['enabled'] || $row['deleted_at'] !== null) throw new RuntimeException('invalid_user_code');
             if (!$this->access->hasAccess($userId, (int)$row['application_id'], $context)) throw new RuntimeException('access_denied');
             $decision = $this->conditional->evaluate($userId, (int)$row['application_id'], $context);
             if (!$decision['allowed']) throw new RuntimeException(($decision['action'] ?? 'deny') === 'deny' ? 'access_denied' : 'interaction_required');
             $authLevel = max(1, (int)($context['auth_level'] ?? 1));
             $authTime = (int)($context['auth_time'] ?? time());
-            $this->db->execute("UPDATE oauth_device_codes SET status='authorized',user_id=?,auth_level=?,auth_time=?,authorized_at=NOW() WHERE id=?", [$userId,$authLevel,date('Y-m-d H:i:s',$authTime),(int)$row['id']]);
+            $this->db->execute("UPDATE oauth_device_codes SET status='authorized',user_id=?,auth_level=?,auth_time=?,authorized_at=NOW() WHERE id=?", [$userId,$authLevel,date('Y-m-d H:i:s',$authTime),(int)$row['device_code_id']]);
             $this->audit->write('oauth.device.authorized', 'success', $userId, $userId, (int)$row['application_id'], null, ['auth_level'=>$authLevel]);
-            return ['application_id'=>(int)$row['application_id'],'application_name'=>(string)$row['name']];
+            return ['application_id'=>(int)$row['application_id'],'application_name'=>(string)$row['application_name']];
         });
     }
 
@@ -73,7 +79,7 @@ final class OAuthAdvancedService
         $deviceCode = (string)($input['device_code'] ?? '');
         if ($deviceCode === '') throw new RuntimeException('invalid_grant');
 
-        return $this->db->transaction(function () use ($app, $deviceCode): array {
+        $result = $this->db->transaction(function () use ($app, $deviceCode): array {
             $row = $this->db->one('SELECT * FROM oauth_device_codes WHERE device_code_hash=? FOR UPDATE', [Security::tokenHash($deviceCode)]);
             if (!$row || (int)$row['application_id'] !== (int)$app['id']) throw new RuntimeException('invalid_grant');
             if (strtotime((string)$row['expires_at']) <= time()) throw new RuntimeException('expired_token');
@@ -84,11 +90,11 @@ final class OAuthAdvancedService
                 $elapsed = time() - strtotime((string)$row['last_polled_at']);
                 if ($elapsed < (int)$row['interval_seconds']) {
                     $this->db->execute('UPDATE oauth_device_codes SET interval_seconds=LEAST(interval_seconds+5,60),poll_count=poll_count+1,last_polled_at=NOW() WHERE id=?', [(int)$row['id']]);
-                    throw new RuntimeException('slow_down');
+                    return ['__error'=>'slow_down'];
                 }
             }
             $this->db->execute('UPDATE oauth_device_codes SET poll_count=poll_count+1,last_polled_at=NOW() WHERE id=?', [(int)$row['id']]);
-            if ($row['status'] === 'pending') throw new RuntimeException('authorization_pending');
+            if ($row['status'] === 'pending') return ['__error'=>'authorization_pending'];
             if ($row['status'] !== 'authorized' || !$row['user_id']) throw new RuntimeException('invalid_grant');
 
             $userId = (int)$row['user_id'];
@@ -98,11 +104,13 @@ final class OAuthAdvancedService
             $this->audit->write('oauth.device.token_issued', 'success', $userId, $userId, (int)$app['id']);
             return $tokens;
         });
+        if (isset($result['__error'])) throw new RuntimeException((string)$result['__error']);
+        return $result;
     }
 
     public function pushAuthorizationRequest(array $input, ?string $authorizationHeader): array
     {
-        $app = $this->authenticateClient($input, $authorizationHeader, false);
+        $app = $this->authenticateClient($input, $authorizationHeader, true);
         $redirectUri = trim((string)($input['redirect_uri'] ?? ''));
         if (!$this->redirectAllowed((int)$app['id'], $redirectUri)) throw new RuntimeException('invalid_request');
         if ((string)($input['response_type'] ?? 'code') !== 'code') throw new RuntimeException('unsupported_response_type');
@@ -141,6 +149,9 @@ final class OAuthAdvancedService
 
     public function createRegistrationToken(string $name, int $actorUserId, ?array $allowedDomains = null, ?string $validUntil = null): string
     {
+        $name = trim($name);
+        if ($name === '') throw new RuntimeException('name_required');
+        if ($validUntil !== null && strtotime($validUntil) === false) throw new RuntimeException('invalid_expiration');
         $token = 'imat_' . Security::randomToken(48);
         $domains = $allowedDomains === null ? null : array_values(array_unique(array_filter(array_map(static fn($v)=>strtolower(trim((string)$v)), $allowedDomains))));
         $this->db->execute('INSERT INTO dynamic_registration_tokens(name,token_hash,allowed_domains_json,valid_until,created_by) VALUES(?,?,?,?,?)', [$name,Security::tokenHash($token),$domains===null?null:json_encode($domains,JSON_THROW_ON_ERROR),$validUntil,$actorUserId]);
@@ -171,6 +182,8 @@ final class OAuthAdvancedService
         while ($this->db->one('SELECT 1 FROM applications WHERE slug=?',[$slug])) $slug = $slugBase.'-'.strtolower(Security::randomToken(4));
         $requestedScopes = $payload['scope'] ?? 'openid profile email';
         $scopes = array_values(array_unique(array_filter(preg_split('/\s+/', is_array($requestedScopes)?implode(' ',array_map('strval',$requestedScopes)):(string)$requestedScopes) ?: [])));
+        $permittedScopes = ['openid','profile','email','roles'];
+        if (array_diff($scopes,$permittedScopes)!==[]) throw new RuntimeException('invalid_client_metadata');
         if (!in_array('openid',$scopes,true)) $scopes[]='openid';
 
         $appId = $this->db->transaction(function () use ($clientName,$url,$integration,$clientId,$secret,$clientType,$slug,$redirectUris,$scopes): int {
@@ -181,7 +194,8 @@ final class OAuthAdvancedService
             return $id;
         });
         $this->db->execute('UPDATE dynamic_registration_tokens SET last_used_at=NOW() WHERE id=?',[(int)$token['id']]);
-        $this->audit->write('oauth.dcr.client_created','success',(int)($token['created_by']?:0)?:null,null,$appId,null,['client_name'=>$clientName]);
+        $actor = $token['created_by'] !== null ? (int)$token['created_by'] : null;
+        $this->audit->write('oauth.dcr.client_created','success',$actor,null,$appId,null,['client_name'=>$clientName]);
         $result=[
             'client_id'=>$clientId,
             'client_id_issued_at'=>time(),
@@ -203,7 +217,10 @@ final class OAuthAdvancedService
         }
         $app=$this->db->one('SELECT * FROM applications WHERE client_id=? AND enabled=1 AND deleted_at IS NULL',[$clientId]);
         if(!$app)throw new RuntimeException('invalid_client');
-        if($app['client_type']==='public'){if(!$allowPublic&&$authorizationHeader===null&&$secret==='')return $app;return $app;}
+        if($app['client_type']==='public'){
+            if(!$allowPublic) throw new RuntimeException('invalid_client');
+            return $app;
+        }
         if(!$this->verifyClientSecret($app,$secret))throw new RuntimeException('invalid_client');
         return $app;
     }
