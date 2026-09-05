@@ -177,8 +177,10 @@ final class OidcService
 
         $accessToken = Security::randomToken(48);
         $refreshToken = Security::randomToken(64);
+        $sid = Security::randomToken(32);
         $this->db->execute('INSERT INTO oauth_access_tokens(token_hash,application_id,user_id,scopes,expires_at) VALUES(?,?,?,?,DATE_ADD(NOW(),INTERVAL 1 HOUR))', [Security::tokenHash($accessToken),(int)$app['id'],$userId,$scopes]);
         $this->db->execute('INSERT INTO oauth_refresh_tokens(token_hash,application_id,user_id,scopes,expires_at) VALUES(?,?,?,?,DATE_ADD(NOW(),INTERVAL 30 DAY))', [Security::tokenHash($refreshToken),(int)$app['id'],$userId,$scopes]);
+        $this->db->execute('INSERT INTO oidc_sessions(sid,application_id,user_id) VALUES(?,?,?)', [$sid,(int)$app['id'],$userId]);
         $this->db->execute('UPDATE applications SET last_used_at=NOW() WHERE id=?', [(int)$app['id']]);
 
         $user = $this->db->one('SELECT uuid,name,email FROM users WHERE id=?', [$userId]);
@@ -189,6 +191,7 @@ final class OidcService
             'aud' => $app['client_id'],
             'iat' => time(),
             'exp' => time() + 3600,
+            'sid' => $sid,
             'name' => $user['name'],
             'email' => $user['email'],
             'roles' => $this->access->rolesForUser($userId, (int)$app['id']),
