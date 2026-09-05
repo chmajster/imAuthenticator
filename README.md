@@ -6,20 +6,129 @@ Aktualna implementacja zawiera moduł zarządzania aplikacjami klienckimi, per-a
 
 ## Instalacja
 
-1. Ustaw katalog `public/` jako DocumentRoot serwera WWW.
-2. Otwórz adres aplikacji w przeglądarce.
-3. Jeżeli `config/config.php` nie istnieje, aplikacja przekieruje do `/install.php`.
-4. Podaj dane MySQL, Issuer URL i konto administratora.
-5. Instalator automatycznie:
-   - utworzy bazę danych,
-   - wykona `database/schema.sql` i migracje,
-   - utworzy administratora,
-   - wygeneruje parę RSA 3072 bit do podpisywania ID Tokenów,
-   - zapisze lokalną konfigurację.
+Repozytorium zawiera `install.sh`, który konfiguruje Apache, wymagane zależności PHP oraz DocumentRoot wskazujący na `public/`.
+
+### Domyślnie: port 80
+
+```bash
+git clone https://github.com/chmajster/imAuthenticator.git
+cd imAuthenticator
+sudo ./install.sh install
+```
+
+Bez podania `--port` aplikacja jest wystawiana na porcie **80**:
+
+```text
+http://ADRES_SERWERA/
+```
+
+### Instalacja na innym porcie
+
+```bash
+sudo ./install.sh install --port 8080
+```
+
+Przykładowy adres:
+
+```text
+http://ADRES_SERWERA:8080/
+```
+
+Dozwolone są porty od `1` do `65535`.
+
+Wybrany port jest zapisywany w:
+
+```text
+/etc/imauthenticator/port
+```
+
+### Aktualizacja
+
+Aktualizacja bez parametru `--port` zachowuje obecnie skonfigurowany port:
+
+```bash
+sudo ./install.sh update
+```
+
+Zmiana portu podczas aktualizacji:
+
+```bash
+sudo ./install.sh update --port 80
+```
+
+lub:
+
+```bash
+sudo ./install.sh update --port 8080
+```
+
+`update` wykonuje `git pull --ff-only`, dlatego checkout repozytorium musi być czysty. Następnie odświeżane są zależności Composer oraz konfiguracja Apache.
+
+### Status
+
+```bash
+sudo ./install.sh status
+```
+
+Polecenie pokazuje m.in. aktualnie skonfigurowany port, wersję PHP i stan Apache.
+
+### Pomoc instalatora
+
+```bash
+./install.sh help
+```
+
+Skrócona składnia:
+
+```text
+sudo ./install.sh install [--port PORT]
+sudo ./install.sh update [--port PORT]
+sudo ./install.sh status
+./install.sh help
+```
+
+Zachowanie portu:
+
+| Polecenie | Zachowanie |
+| --- | --- |
+| `install` | port 80 |
+| `install --port N` | instalacja na porcie N |
+| `update` | zachowuje aktualny port |
+| `update --port N` | aktualizuje aplikację i przełącza ją na port N |
+
+### Co robi `install.sh`
+
+Na systemach Debian/Ubuntu instalator może automatycznie doinstalować Apache, PHP, wymagane rozszerzenia, Composer i Git. Następnie:
+
+1. sprawdza PHP >= 8.2 i wymagane rozszerzenia;
+2. wykonuje `composer install --no-dev`;
+3. włącza `mod_rewrite`;
+4. ustawia `public/` jako Apache DocumentRoot;
+5. konfiguruje wybrany port;
+6. zapisuje port w `/etc/imauthenticator/port`;
+7. sprawdza konfigurację Apache przez `apache2ctl configtest`;
+8. uruchamia ponownie Apache.
+
+Po instalacji otwórz aplikację w przeglądarce. Jeżeli `config/config.php` nie istnieje, aplikacja przekieruje do `/install.php`.
+
+W webowym instalatorze:
+
+1. podaj dane MySQL;
+2. podaj Issuer URL;
+3. utwórz konto administratora;
+4. zatwierdź instalację.
+
+Instalator webowy automatycznie:
+
+- utworzy bazę danych,
+- wykona `database/schema.sql` i migracje,
+- utworzy administratora,
+- wygeneruje parę RSA 3072 bit do podpisywania ID Tokenów,
+- zapisze lokalną konfigurację.
 
 Nie trzeba ręcznie wykonywać SQL ani tworzyć kluczy OIDC.
 
-Wymagania: PHP >= 8.2, PDO MySQL, OpenSSL, JSON oraz MySQL/MariaDB zgodne z użytym schematem.
+Wymagania aplikacji: PHP >= 8.2, PDO MySQL, OpenSSL, JSON, mbstring oraz MySQL/MariaDB zgodne z użytym schematem.
 
 ## Aplikacje klienckie
 
@@ -141,6 +250,7 @@ Rejestrowane są m.in.:
 
 ## Struktura
 
+- `install.sh` — instalacja, aktualizacja, konfiguracja Apache i portu,
 - `public/` — front controller, installer, endpoint token i assety,
 - `src/` — baza danych, sesje, bezpieczeństwo, dostęp aplikacyjny, OIDC i audyt,
 - `database/schema.sql` — główny schemat,
