@@ -11,14 +11,39 @@ permissions:
 jobs:
   php:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: imauth_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_mysql, openssl, json
+          extensions: pdo_mysql, openssl, json, iconv, mbstring
           coverage: none
       - name: PHP syntax
         run: find . -type f -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
       - name: Composer validation
         run: composer validate --strict
+      - name: Apply database schema and migrations
+        run: |
+          mysql -h127.0.0.1 -uroot imauth_ci < database/schema.sql
+          for migration in database/migrations/*.sql; do
+            mysql -h127.0.0.1 -uroot imauth_ci < "$migration"
+          done
+      - name: Access policy smoke test
+        env:
+          TEST_DB_DSN: mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4
+          TEST_DB_USER: root
+          TEST_DB_PASS: ''
+        run: php tests/access_policy_smoke.php
