@@ -64,3 +64,6 @@ jobs:
       - name: Operational identity smoke test
         env: *db_env
         run: php tests/operational_identity_smoke.php
+      - name: Session policy and delegated admin smoke test
+        env: *db_env
+        run: php tests/session_policy_smoke.php
