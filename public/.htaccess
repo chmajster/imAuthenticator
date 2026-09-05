@@ -18,6 +18,7 @@ RewriteRule ^admin/scim/?$ admin-scim.php [QSA,L]
 RewriteRule ^admin/security/?$ security-dashboard.php [QSA,L]
 RewriteRule ^admin/audit/export/?$ audit-export.php [QSA,L]
 RewriteRule ^admin/identity-providers/?$ admin-identity-providers.php [QSA,L]
+RewriteRule ^admin/identity-providers/([0-9]+)/directory/?$ admin-directory.php?id=$1 [QSA,L]
 
 RewriteCond %{REQUEST_METHOD} =GET
 RewriteRule ^admin/applications/?$ applications-list.php [QSA,L]
