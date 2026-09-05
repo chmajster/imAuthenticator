@@ -1,0 +1,6 @@
+/config/config.php
+/config/keys/*.pem
+/vendor/
+/.idea/
+/.vscode/
+*.log

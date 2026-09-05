@@ -1,0 +1,14 @@
+{
+  "name": "chmajster/imauthenticator",
+  "description": "Central OAuth 2.0 / OpenID Connect authentication and application access hub",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "ext-pdo": "*",
+    "ext-openssl": "*",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {"ImAuthenticator\\": "src/"}
+  }
+}
