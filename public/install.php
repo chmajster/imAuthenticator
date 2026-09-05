@@ -40,6 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $schema = file_get_contents(dirname(__DIR__) . '/database/schema.sql');
             if ($schema === false) throw new RuntimeException('Brak database/schema.sql.');
             $pdo->exec($schema);
+            foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') ?: [] as $migration) {
+                $sql = file_get_contents($migration);
+                if ($sql === false) throw new RuntimeException('Nie można odczytać migracji: ' . basename($migration));
+                $pdo->exec($sql);
+            }
 
             $uuid = (static function (): string {
                 $d = random_bytes(16);
