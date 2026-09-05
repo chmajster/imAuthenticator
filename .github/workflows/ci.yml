@@ -44,20 +44,17 @@ jobs:
             mysql -h127.0.0.1 -uroot imauth_ci < "$migration"
           done
       - name: Access policy smoke test
-        env:
+        env: &db_env
           TEST_DB_DSN: mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4
           TEST_DB_USER: root
           TEST_DB_PASS: ''
         run: php tests/access_policy_smoke.php
       - name: Enterprise security smoke test
-        env:
-          TEST_DB_DSN: mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4
-          TEST_DB_USER: root
-          TEST_DB_PASS: ''
+        env: *db_env
         run: php tests/enterprise_security_smoke.php
       - name: SCIM and access review smoke test
-        env:
-          TEST_DB_DSN: mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4
-          TEST_DB_USER: root
-          TEST_DB_PASS: ''
+        env: *db_env
         run: php tests/scim_access_review_smoke.php
+      - name: Advanced OAuth and API key smoke test
+        env: *db_env
+        run: php tests/oauth_advanced_smoke.php
