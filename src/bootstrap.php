@@ -15,6 +15,7 @@ use ImAuthenticator\DeviceRiskService;
 use ImAuthenticator\DirectorySyncService;
 use ImAuthenticator\EventService;
 use ImAuthenticator\JwtService;
+use ImAuthenticator\LogoutPropagationService;
 use ImAuthenticator\OAuthAdvancedService;
 use ImAuthenticator\OidcService;
 use ImAuthenticator\PasskeyChallengeService;
@@ -59,7 +60,8 @@ $scim=new ScimService($db,$access,$audit,$events);
 $directory=new DirectorySyncService($db,$audit,$events);
 $jwt=new JwtService($config);
 $signingKeys=new SigningKeyService($db,$audit,$config,$configFile);
+$logoutPropagation=new LogoutPropagationService($db,$audit,$jwt);
 $oauthAdvanced=new OAuthAdvancedService($db,$access,$conditional,$audit,$jwt,$config);
 $oidc=new OidcService($db,$access,$conditional,$audit,$config);
 
-return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','signingKeys','oauthAdvanced','oidc');
+return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','signingKeys','logoutPropagation','oauthAdvanced','oidc');
