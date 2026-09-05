@@ -10,7 +10,9 @@ RewriteRule ^admin/applications/?$ applications-list.php [QSA,L]
 RewriteRule ^admin/applications/new/?$ application-new.php [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/edit/?$ application-edit.php?id=$1 [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/users/?$ application-users.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/access-policy/?$ application-access-policy.php?id=$1 [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/config-with-secret\.json$ application-config-secret.php?id=$1 [QSA,L]
+RewriteRule ^admin/users/([0-9]+)/applications/?$ user-applications.php?id=$1 [QSA,L]
 
 RewriteCond %{QUERY_STRING} (^|&)created=1(&|$)
 RewriteRule ^admin/applications/([0-9]+)/?$ application-created.php?id=$1 [QSA,L]
