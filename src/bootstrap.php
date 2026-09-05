@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use ImAuthenticator\AccessRequestService;
 use ImAuthenticator\AccessReviewService;
+use ImAuthenticator\ApiKeyService;
 use ImAuthenticator\ApplicationAccessService;
 use ImAuthenticator\ApplicationAdminService;
 use ImAuthenticator\AuditIntegrityService;
@@ -46,6 +47,7 @@ $db=new Database($config['db']);
 $audit=new AuditLog($db);
 $auditIntegrity=new AuditIntegrityService($db);
 $events=new EventService($db);
+$apiKeys=new ApiKeyService($db,$audit);
 $access=new ApplicationAccessService($db,$audit);
 $appAdmins=new ApplicationAdminService($db);
 $conditional=new ConditionalAccessService($db,$access);
@@ -64,4 +66,4 @@ $logoutPropagation=new LogoutPropagationService($db,$audit,$jwt);
 $oauthAdvanced=new OAuthAdvancedService($db,$access,$conditional,$audit,$jwt,$config);
 $oidc=new OidcService($db,$access,$conditional,$audit,$config);
 
-return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','signingKeys','logoutPropagation','oauthAdvanced','oidc');
+return compact('config','db','audit','auditIntegrity','events','apiKeys','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','signingKeys','logoutPropagation','oauthAdvanced','oidc');
