@@ -1,0 +1,2 @@
+<?php
+declare(strict_types=1);use ImAuthenticator\Web;$services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);$user=$auth->currentUser();if($user)$sessions->globalLogout((int)$user['id'],(int)$user['id'],'SAML single logout');$auth->logout();Web::page('Wylogowano','<section class="card narrow"><h1>Sesja SSO została zakończona</h1><a class="button" href="/login">Logowanie</a></section>');

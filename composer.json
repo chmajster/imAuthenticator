@@ -10,7 +10,20 @@
     "ext-openssl": "*",
     "ext-json": "*",
     "ext-iconv": "*",
-    "ext-mbstring": "*"
+    "ext-mbstring": "*",
+    "ext-dom": "*",
+    "ext-zip": "*",
+    "ext-xmlwriter": "*",
+    "bacon/bacon-qr-code": "^3.1.1",
+    "web-auth/webauthn-lib": "^5.3.8",
+    "onelogin/php-saml": "^4.3.2",
+    "symfony/serializer": "^7.4",
+    "symfony/property-info": "^7.4",
+    "phpdocumentor/reflection-docblock": "^5.6"
+  },
+  "suggest": {
+    "ext-ldap": "Required for LDAP / Active Directory synchronization",
+    "ext-curl": "Recommended for external identity-provider metadata and HTTP integrations"
   },
   "autoload": {
     "psr-4": {"ImAuthenticator\\": "src/"}

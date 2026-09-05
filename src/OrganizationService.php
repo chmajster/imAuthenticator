@@ -1,0 +1,69 @@
+<?php
+declare(strict_types=1);
+namespace ImAuthenticator;
+
+final class OrganizationService
+{
+    public function __construct(private Database $db, private AuditLog $audit) {}
+
+    public function canManage(int $userId, int $orgId): bool
+    {
+        $u = $this->db->one('SELECT is_admin,enabled,lifecycle_status FROM users WHERE id=?', [$userId]);
+        if (!$u || !(bool)$u['enabled'] || $u['lifecycle_status'] !== 'active') return false;
+        if ((bool)$u['is_admin']) return true;
+        return $this->db->one("SELECT 1 FROM organization_memberships om JOIN organizations o ON o.id=om.organization_id WHERE om.organization_id=? AND om.user_id=? AND om.role IN ('owner','admin') AND om.status='active' AND o.status='active' AND (om.valid_from IS NULL OR om.valid_from<=NOW()) AND (om.valid_until IS NULL OR om.valid_until>NOW())", [$orgId,$userId]) !== null;
+    }
+
+    public function isMember(int $userId, int $orgId): bool
+    {
+        return $this->db->one("SELECT 1 FROM organization_memberships om JOIN organizations o ON o.id=om.organization_id WHERE om.organization_id=? AND om.user_id=? AND om.status='active' AND o.status='active' AND (om.valid_from IS NULL OR om.valid_from<=NOW()) AND (om.valid_until IS NULL OR om.valid_until>NOW())", [$orgId,$userId]) !== null;
+    }
+
+    public function ensureMember(int $orgId, int $userId, ?int $actorUserId = null, string $role = 'member'): bool
+    {
+        if (!in_array($role, ['member','viewer'], true)) $role = 'member';
+        $org = $this->db->one("SELECT status FROM organizations WHERE id=?", [$orgId]);
+        if (!$org || $org['status'] !== 'active') return false;
+        $existing = $this->db->one('SELECT role,status,valid_from,valid_until FROM organization_memberships WHERE organization_id=? AND user_id=?', [$orgId,$userId]);
+        if ($existing) return $this->isMember($userId,$orgId);
+        $this->db->execute("INSERT INTO organization_memberships(organization_id,user_id,role,status,created_by) VALUES(?,?,?,'active',?)", [$orgId,$userId,$role,$actorUserId]);
+        $this->audit->write('organization.membership.provisioned','success',$actorUserId,$userId,null,null,['organization_id'=>$orgId,'role'=>$role]);
+        return true;
+    }
+
+    public function create(string $name, string $slug, int $actor): int
+    {
+        $name = trim($name); $slug = Security::slug($slug !== '' ? $slug : $name);
+        if ($name === '') throw new \RuntimeException('organization_name_required');
+        $this->db->execute("INSERT INTO organizations(uuid,name,slug,status) VALUES(?,?,?,'active')", [Security::uuidV4(),$name,$slug]);
+        $id = $this->db->lastInsertId();
+        $this->db->execute("INSERT INTO organization_memberships(organization_id,user_id,role,status,created_by) VALUES(?,?,'owner','active',?)", [$id,$actor,$actor]);
+        $this->audit->write('organization.created','success',$actor,null,null,null,['organization_id'=>$id,'name'=>$name]);
+        return $id;
+    }
+
+    public function setMember(int $orgId, int $userId, string $role, string $status, ?string $from, ?string $until, int $actor): void
+    {
+        if (!in_array($role,['owner','admin','member','viewer'],true) || !in_array($status,['active','pending','suspended','expired'],true)) throw new \RuntimeException('invalid_membership');
+        if ($from !== null && strtotime($from) === false) throw new \RuntimeException('invalid_valid_from');
+        if ($until !== null && strtotime($until) === false) throw new \RuntimeException('invalid_valid_until');
+        if ($from !== null && $until !== null && strtotime($until) <= strtotime($from)) throw new \RuntimeException('invalid_membership_window');
+        $this->db->execute('INSERT INTO organization_memberships(organization_id,user_id,role,status,valid_from,valid_until,created_by) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE role=VALUES(role),status=VALUES(status),valid_from=VALUES(valid_from),valid_until=VALUES(valid_until),created_by=VALUES(created_by)', [$orgId,$userId,$role,$status,$from,$until,$actor]);
+        $this->audit->write('organization.membership.saved','success',$actor,$userId,null,null,['organization_id'=>$orgId,'role'=>$role,'status'=>$status,'valid_from'=>$from,'valid_until'=>$until]);
+    }
+
+    public function removeMember(int $orgId, int $userId, int $actor): void
+    {
+        $owners = $this->db->one("SELECT COUNT(*) AS c FROM organization_memberships WHERE organization_id=? AND role='owner' AND status='active'", [$orgId]);
+        $row = $this->db->one('SELECT role,status FROM organization_memberships WHERE organization_id=? AND user_id=?', [$orgId,$userId]);
+        if ($row && $row['role'] === 'owner' && $row['status'] === 'active' && (int)($owners['c'] ?? 0) <= 1) throw new \RuntimeException('cannot_remove_last_owner');
+        $this->db->execute('DELETE FROM organization_memberships WHERE organization_id=? AND user_id=?', [$orgId,$userId]);
+        $this->audit->write('organization.membership.removed','success',$actor,$userId,null,null,['organization_id'=>$orgId]);
+    }
+
+    public function assignApplication(int $orgId, int $appId, int $actor): void
+    {
+        $this->db->execute('UPDATE applications SET organization_id=? WHERE id=? AND deleted_at IS NULL', [$orgId,$appId]);
+        $this->audit->write('organization.application.assigned','success',$actor,null,$appId,null,['organization_id'=>$orgId]);
+    }
+}

@@ -1,0 +1,20 @@
+<?php
+declare(strict_types=1);
+use ImAuthenticator\Security;
+use ImAuthenticator\Web;
+$services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);$user=$auth->requireUser();$uid=(int)$user['id'];$message='';
+if(strtoupper($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
+ Security::requireCsrf($_POST['_csrf']??null);$action=(string)($_POST['action']??'');
+ try{
+  if($action==='begin_totp'){$_SESSION['pending_totp']=$mfa->beginTotp($uid,trim((string)($_POST['label']??'Authenticator'))?:'Authenticator');}
+  elseif($action==='confirm_totp'){$pending=$_SESSION['pending_totp']??null;if(!is_array($pending))throw new RuntimeException('totp_setup_expired');$mfa->confirmTotp($uid,(int)$pending['method_id'],(string)($_POST['code']??''));unset($_SESSION['pending_totp']);$message='<div class="alert success">TOTP został aktywowany.</div>';}
+  elseif($action==='backup_codes'){$_SESSION['new_backup_codes']=$mfa->regenerateBackupCodes($uid);}
+  elseif($action==='disable'){$mfa->disableMethod($uid,(int)($_POST['method_id']??0));$message='<div class="alert success">Metoda MFA została wyłączona.</div>';}
+ }catch(Throwable $e){$message='<div class="alert danger">'.Web::e($e->getMessage()).'</div>';}
+}
+$pending=$_SESSION['pending_totp']??null;$setup='';if(is_array($pending)){$setup='<section class="card"><h2>Dokończ konfigurację TOTP</h2><p>Dodaj sekret do Microsoft Authenticator, Google Authenticator, 1Password lub innej aplikacji TOTP.</p><div class="kv"><span>Sekret</span><code>'.Web::e($pending['secret']).'</code></div><div class="kv"><span>URI</span><code>'.Web::e($pending['otpauth_uri']).'</code></div><form method="post"><input type="hidden" name="_csrf" value="'.Web::e(Security::csrfToken()).'"><input type="hidden" name="action" value="confirm_totp"><label>Kod 6-cyfrowy<input name="code" inputmode="numeric" pattern="[0-9]{6}" required></label><button class="primary">Potwierdź</button></form></section>';}
+$codes=$_SESSION['new_backup_codes']??null;$codesBox='';if(is_array($codes)){unset($_SESSION['new_backup_codes']);$codesBox='<div class="alert warning"><strong>Kody zapasowe — zapisz je teraz. Nie będą ponownie pokazane.</strong><pre>'.Web::e(implode("\n",$codes)).'</pre></div>';}
+$rows='';foreach($mfa->methods($uid) as $method){$rows.='<tr><td>'.Web::e($method['method']).'</td><td>'.Web::e($method['label']?:'—').'</td><td>'.((bool)$method['enabled']?'Aktywna':'Nieaktywna').'</td><td>'.Web::e($method['last_used_at']?:'—').'</td><td><form method="post"><input type="hidden" name="_csrf" value="'.Web::e(Security::csrfToken()).'"><input type="hidden" name="action" value="disable"><input type="hidden" name="method_id" value="'.(int)$method['id'].'"><button '.(!(bool)$method['enabled']?'disabled':'').'>Wyłącz</button></form></td></tr>';}
+if($rows==='')$rows='<tr><td colspan="5" class="empty">Brak skonfigurowanego TOTP.</td></tr>';
+$content='<div class="page-head"><div><h1>MFA</h1><p>TOTP, kody zapasowe i passkeys/FIDO2.</p></div><a class="button" href="/account/passkeys">Zarządzaj Passkeys</a></div>'.$message.$codesBox.$setup.'<section class="card"><h2>Dodaj TOTP</h2><form method="post"><input type="hidden" name="_csrf" value="'.Web::e(Security::csrfToken()).'"><input type="hidden" name="action" value="begin_totp"><label>Nazwa urządzenia<input name="label" value="Authenticator"></label><button class="primary">Generuj sekret</button></form></section><section class="card"><h2>Kody zapasowe</h2><p>Pozostało: <strong>'.$mfa->remainingBackupCodes($uid).'</strong></p><form method="post" onsubmit="return confirm(\'Poprzednie niewykorzystane kody zostaną usunięte. Kontynuować?\')"><input type="hidden" name="_csrf" value="'.Web::e(Security::csrfToken()).'"><input type="hidden" name="action" value="backup_codes"><button>Regeneruj kody</button></form></section><div class="table-wrap"><table><thead><tr><th>Metoda</th><th>Nazwa</th><th>Status</th><th>Ostatnie użycie</th><th>Akcje</th></tr></thead><tbody>'.$rows.'</tbody></table></div>';
+Web::page('MFA',$content,$user);

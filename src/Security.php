@@ -62,4 +62,26 @@ final class Security
         $value = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '-', $value) ?? '', '-'));
         return $value !== '' ? $value : 'app-' . strtolower(self::randomToken(6));
     }
+
+    public static function currentIp(): string
+    {
+        return substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
+    }
+
+    public static function ipInCidr(string $ip, string $cidr): bool
+    {
+        $parts = explode('/', trim($cidr), 2);
+        $network = inet_pton($parts[0]);
+        $address = inet_pton($ip);
+        if ($network === false || $address === false || strlen($network) !== strlen($address)) return false;
+        $max = strlen($network) * 8;
+        $prefix = isset($parts[1]) ? (int)$parts[1] : $max;
+        if ($prefix < 0 || $prefix > $max) return false;
+        $bytes = intdiv($prefix, 8);
+        $bits = $prefix % 8;
+        if ($bytes > 0 && substr($network, 0, $bytes) !== substr($address, 0, $bytes)) return false;
+        if ($bits === 0) return true;
+        $mask = (0xFF << (8 - $bits)) & 0xFF;
+        return (ord($network[$bytes]) & $mask) === (ord($address[$bytes]) & $mask);
+    }
 }

@@ -1,0 +1,13 @@
+<?php
+declare(strict_types=1);
+use ImAuthenticator\Security;
+use ImAuthenticator\Web;
+$services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);$admin=$auth->requireAdmin();$message='';
+if(strtoupper($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
+ Security::requireCsrf($_POST['_csrf']??null);
+ try{$source=(int)($_POST['source_user_id']??0);$target=(int)($_POST['target_user_id']??0);$userMerge->merge($source,$target,(int)$admin['id'],(string)($_POST['reason']??''));$message='<div class="alert success">Konta zostały scalone. Konto źródłowe pozostaje jako wyłączony rekord audytowy.</div>';}catch(Throwable $e){$message='<div class="alert danger">'.Web::e($e->getMessage()).'</div>';}
+}
+$users=$db->all("SELECT id,name,email,is_admin,break_glass,lifecycle_status FROM users WHERE lifecycle_status<>'disabled' ORDER BY name,email");$sourceOptions='';$targetOptions='';foreach($users as $u){$label=Web::e($u['name'].' — '.$u['email']);if(!(bool)$u['is_admin']&&!(bool)$u['break_glass'])$sourceOptions.='<option value="'.(int)$u['id'].'">'.$label.'</option>';$targetOptions.='<option value="'.(int)$u['id'].'">'.$label.'</option>';}
+$history='';foreach($db->all('SELECT h.*,u.email AS target_email,a.email AS actor_email FROM user_merge_history h JOIN users u ON u.id=h.target_user_id LEFT JOIN users a ON a.id=h.merged_by ORDER BY h.id DESC LIMIT 30') as $h)$history.='<tr><td>'.(int)$h['source_user_id'].'</td><td>'.Web::e($h['target_email']).'</td><td>'.Web::e($h['actor_email']?:'—').'</td><td>'.Web::e($h['merged_at']).'</td></tr>';if($history==='')$history='<tr><td colspan="4" class="empty">Brak operacji scalania.</td></tr>';
+$content='<div class="page-head"><div><h1>Scal użytkowników</h1><p>Przenosi dostęp, grupy, role, aliasy i external identities. Tokeny, sesje, MFA i zgody konta źródłowego nie są przenoszone.</p></div><a class="button" href="/admin/users/import">Import</a></div>'.$message.'<section class="card"><form method="post" onsubmit="return confirm(\'Scalenie jest operacją administracyjną. Konto źródłowe zostanie trwale wyłączone. Kontynuować?\')"><input type="hidden" name="_csrf" value="'.Web::e(Security::csrfToken()).'"><label>Konto źródłowe<select name="source_user_id" required>'.$sourceOptions.'</select></label><label>Konto docelowe<select name="target_user_id" required>'.$targetOptions.'</select></label><label>Powód<textarea name="reason" required></textarea></label><button class="danger">Scal konta</button></form></section><div class="table-wrap"><table><thead><tr><th>Source ID</th><th>Konto docelowe</th><th>Administrator</th><th>Data</th></tr></thead><tbody>'.$history.'</tbody></table></div>';
+Web::page('Scal użytkowników',$content,$admin);

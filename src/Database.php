@@ -8,6 +8,7 @@ use PDO;
 final class Database
 {
     private PDO $pdo;
+    private int $transactionDepth = 0;
 
     public function __construct(array $config)
     {
@@ -44,13 +45,32 @@ final class Database
 
     public function transaction(callable $callback): mixed
     {
-        $this->pdo->beginTransaction();
+        $level = $this->transactionDepth;
+        $savepoint = 'imauth_sp_' . $level;
+
+        if ($level === 0) {
+            $this->pdo->beginTransaction();
+        } else {
+            $this->pdo->exec('SAVEPOINT ' . $savepoint);
+        }
+        $this->transactionDepth++;
+
         try {
             $result = $callback($this);
-            $this->pdo->commit();
+            $this->transactionDepth--;
+            if ($level === 0) {
+                $this->pdo->commit();
+            } else {
+                $this->pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
+            }
             return $result;
         } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            $this->transactionDepth--;
+            if ($level === 0) {
+                if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            } elseif ($this->pdo->inTransaction()) {
+                $this->pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+            }
             throw $e;
         }
     }

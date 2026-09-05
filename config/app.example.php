@@ -8,4 +8,12 @@ return [
         'public' => __DIR__ . '/keys/public.pem',
         'kid' => 'default',
     ],
+    'security' => [
+        'device_cookie_name' => 'imauth_device',
+        // Set these only when a trusted reverse proxy strips client-supplied copies
+        // and injects verified geolocation headers. Values use PHP's HTTP_* names.
+        'geo_country_header' => '',
+        'geo_latitude_header' => '',
+        'geo_longitude_header' => '',
+    ],
 ];
