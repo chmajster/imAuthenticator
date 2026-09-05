@@ -1,0 +1,2 @@
+<?php
+declare(strict_types=1);use ImAuthenticator\Web;$services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);try{$provider=(int)($_GET['provider']??0);$return=(string)($_GET['return']??'/dashboard');Web::redirect($externalIdentity->begin($provider,$return));}catch(Throwable $e){http_response_code(400);Web::page('Logowanie zewnętrzne','<section class="card narrow"><h1>Nie można rozpocząć logowania</h1><div class="code">'.Web::e($e->getMessage()).'</div><a class="button" href="/login">Powrót</a></section>');}
