@@ -18,7 +18,6 @@ spl_autoload_register(static function (string $class): void {
     $path = __DIR__ . '/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
     if (is_file($path)) require $path;
 });
-
 $configFile = dirname(__DIR__) . '/config/config.php';
 if (!is_file($configFile)) {
     if (PHP_SAPI !== 'cli') { header('Location: /install.php'); exit; }
@@ -40,6 +39,6 @@ $conditional = new ConditionalAccessService($db, $access);
 $auth = new AuthService($db, $audit);
 $risk = new DeviceRiskService($db);
 $requests = new AccessRequestService($db, $access, $appAdmins, $audit, $events);
-$oidc = new OidcService($db, $access, $audit, $config);
+$oidc = new OidcService($db, $access, $conditional, $audit, $config);
 
 return compact('config','db','audit','events','access','appAdmins','conditional','auth','risk','requests','oidc');
