@@ -21,10 +21,13 @@ function check(bool $condition, string $message): void {
     fwrite(STDOUT, "OK: {$message}\n");
 }
 
+$testDbDsn = getenv('TEST_DB_DSN');
+$testDbUser = getenv('TEST_DB_USER');
+$testDbPass = getenv('TEST_DB_PASS');
 $db = new Database([
-    'dsn' => getenv('TEST_DB_DSN') ?: 'mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4',
-    'user' => getenv('TEST_DB_USER') ?: 'root',
-    'pass' => getenv('TEST_DB_PASS') ?: 'root',
+    'dsn' => $testDbDsn === false ? 'mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4' : $testDbDsn,
+    'user' => $testDbUser === false ? 'root' : $testDbUser,
+    'pass' => $testDbPass === false ? 'root' : $testDbPass,
 ]);
 $audit = new AuditLog($db);
 $access = new ApplicationAccessService($db, $audit);
