@@ -2,6 +2,18 @@ Options -Indexes
 RewriteEngine On
 
 RewriteRule ^oauth/token/?$ token.php [QSA,L]
+RewriteRule ^\.well-known/openid-configuration/?$ discovery.php [QSA,L]
+
+RewriteCond %{REQUEST_METHOD} =GET
+RewriteRule ^admin/applications/?$ applications-list.php [QSA,L]
+
+RewriteRule ^admin/applications/new/?$ application-new.php [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/edit/?$ application-edit.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/users/?$ application-users.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/config-with-secret\.json$ application-config-secret.php?id=$1 [QSA,L]
+
+RewriteCond %{QUERY_STRING} (^|&)created=1(&|$)
+RewriteRule ^admin/applications/([0-9]+)/?$ application-created.php?id=$1 [QSA,L]
 
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
