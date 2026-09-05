@@ -1,12 +1,18 @@
 <?php
 declare(strict_types=1);
 
+use ImAuthenticator\Security;
 use ImAuthenticator\Web;
 
 $services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);
-$params=$_GET;
+$params=$_GET;$parId=null;
 try{
- if(isset($_GET['request_uri'])){$params=$oauthAdvanced->consumePar((string)$_GET['request_uri']);}
+ if(isset($_GET['request_uri'])){
+  $requestUri=(string)$_GET['request_uri'];
+  $par=$db->one('SELECT * FROM oauth_par_requests WHERE request_uri_hash=? AND used_at IS NULL AND expires_at>NOW()',[Security::tokenHash($requestUri)]);
+  if(!$par)throw new RuntimeException('invalid_request_uri');
+  $decoded=json_decode((string)$par['params_json'],true);if(!is_array($decoded))throw new RuntimeException('invalid_request_uri');$params=$decoded;$parId=(int)$par['id'];
+ }
  $clientId=(string)($params['client_id']??'');$redirectUri=(string)($params['redirect_uri']??'');$state=isset($params['state'])?(string)$params['state']:null;
  $app=$oidc->client($clientId);
  if(!$app){http_response_code(400);Web::page('Błąd OAuth','<section class="card narrow"><h1>Nieprawidłowy klient</h1><div class="code">invalid_client</div></section>');}
@@ -21,6 +27,7 @@ try{
  if(!$access->hasAccess((int)$user['id'],$app,$context))$fail('access_denied','User is not allowed to access this application');
  $scopes=$oidc->allowedScopes((int)$app['id'],(string)($params['scope']??'openid'));
  $code=$oidc->createAuthorizationCode($app,(int)$user['id'],$redirectUri,$scopes,isset($params['code_challenge'])?(string)$params['code_challenge']:null,isset($params['code_challenge_method'])?(string)$params['code_challenge_method']:null,isset($params['nonce'])?(string)$params['nonce']:null);
+ if($parId!==null){$updated=$db->execute('UPDATE oauth_par_requests SET used_at=NOW() WHERE id=? AND used_at IS NULL',[$parId]);if($updated!==1)throw new RuntimeException('invalid_request_uri');}
  $query=['code'=>$code];if($state!==null)$query['state']=$state;Web::redirect($redirectUri.(str_contains($redirectUri,'?')?'&':'?').http_build_query($query));
 }catch(RuntimeException $e){
  $error=$e->getMessage();
