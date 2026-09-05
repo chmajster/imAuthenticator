@@ -1,7 +1,12 @@
 Options -Indexes
 RewriteEngine On
 
+RewriteRule ^oauth/authorize/?$ authorize.php [QSA,L]
 RewriteRule ^oauth/token/?$ token.php [QSA,L]
+RewriteRule ^oauth/device_authorization/?$ oauth-device-authorization.php [QSA,L]
+RewriteRule ^oauth/par/?$ oauth-par.php [QSA,L]
+RewriteRule ^connect/register/?$ dynamic-register.php [QSA,L]
+RewriteRule ^activate/?$ activate.php [QSA,L]
 RewriteRule ^\.well-known/openid-configuration/?$ discovery.php [QSA,L]
 RewriteRule ^login/?$ login.php [QSA,L]
 RewriteRule ^applications/catalog/?$ application-catalog.php [QSA,L]
@@ -19,6 +24,7 @@ RewriteRule ^admin/security/?$ security-dashboard.php [QSA,L]
 RewriteRule ^admin/audit/export/?$ audit-export.php [QSA,L]
 RewriteRule ^admin/identity-providers/?$ admin-identity-providers.php [QSA,L]
 RewriteRule ^admin/identity-providers/([0-9]+)/directory/?$ admin-directory.php?id=$1 [QSA,L]
+RewriteRule ^admin/dynamic-registration/?$ admin-dynamic-registration.php [QSA,L]
 
 RewriteCond %{REQUEST_METHOD} =GET
 RewriteRule ^admin/applications/?$ applications-list.php [QSA,L]
