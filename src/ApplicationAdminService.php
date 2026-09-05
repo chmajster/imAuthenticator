@@ -16,6 +16,9 @@ final class ApplicationAdminService
         $row = $this->db->one('SELECT permissions_json FROM application_admins WHERE application_id=? AND user_id=?', [$applicationId,$userId]);
         if (!$row) return false;
         $permissions = json_decode((string)$row['permissions_json'], true);
-        return is_array($permissions) && (($permissions['*'] ?? false) === true || ($permissions[$permission] ?? false) === true || ($permissions['manage'] ?? false) === true);
+        if(!is_array($permissions))return false;
+        if(($permissions['*']??false)===true||($permissions['manage']??false)===true)return true;
+        if($permission==='manage')foreach($permissions as $value)if($value===true)return true;
+        return ($permissions[$permission] ?? false) === true;
     }
 }
