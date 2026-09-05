@@ -12,6 +12,7 @@ use ImAuthenticator\ClientSecretService;
 use ImAuthenticator\ConditionalAccessService;
 use ImAuthenticator\Database;
 use ImAuthenticator\DeviceRiskService;
+use ImAuthenticator\DirectorySyncService;
 use ImAuthenticator\EventService;
 use ImAuthenticator\OidcService;
 use ImAuthenticator\PasskeyChallengeService;
@@ -52,6 +53,7 @@ $sessions=new SessionService($db,$audit,$events);
 $clientSecrets=new ClientSecretService($db,$appAdmins,$audit,$events);
 $passkeys=new PasskeyChallengeService($db,$config,$audit);
 $scim=new ScimService($db,$access,$audit,$events);
+$directory=new DirectorySyncService($db,$audit,$events);
 $oidc=new OidcService($db,$access,$conditional,$audit,$config);
 
-return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','oidc');
+return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','oidc');
