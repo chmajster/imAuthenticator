@@ -73,3 +73,6 @@ jobs:
       - name: Scheduler and secret expiry smoke test
         env: *db_env
         run: php tests/scheduler_smoke.php
+      - name: Integration toolkit smoke test
+        env: *db_env
+        run: php tests/integration_toolkit_smoke.php
