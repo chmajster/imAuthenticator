@@ -67,3 +67,6 @@ jobs:
       - name: Session policy and delegated admin smoke test
         env: *db_env
         run: php tests/session_policy_smoke.php
+      - name: Tenant and runtime security smoke test
+        env: *db_env
+        run: php tests/tenant_runtime_smoke.php
