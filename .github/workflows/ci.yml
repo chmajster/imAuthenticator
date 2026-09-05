@@ -1,13 +1,10 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
   php:
     runs-on: ubuntu-latest
@@ -17,8 +14,7 @@ jobs:
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
           MYSQL_DATABASE: imauth_ci
-        ports:
-          - 3306:3306
+        ports: ['3306:3306']
         options: >-
           --health-cmd="mysqladmin ping -h localhost"
           --health-interval=10s
@@ -40,14 +36,9 @@ jobs:
       - name: Apply database schema and migrations
         run: |
           mysql -h127.0.0.1 -uroot imauth_ci < database/schema.sql
-          for migration in database/migrations/*.sql; do
-            mysql -h127.0.0.1 -uroot imauth_ci < "$migration"
-          done
+          for migration in database/migrations/*.sql; do mysql -h127.0.0.1 -uroot imauth_ci < "$migration"; done
       - name: Access policy smoke test
-        env: &db_env
-          TEST_DB_DSN: mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4
-          TEST_DB_USER: root
-          TEST_DB_PASS: ''
+        env: &db_env {TEST_DB_DSN: 'mysql:host=127.0.0.1;dbname=imauth_ci;charset=utf8mb4', TEST_DB_USER: root, TEST_DB_PASS: ''}
         run: php tests/access_policy_smoke.php
       - name: Enterprise security smoke test
         env: *db_env
@@ -76,3 +67,6 @@ jobs:
       - name: Integration toolkit smoke test
         env: *db_env
         run: php tests/integration_toolkit_smoke.php
+      - name: Audit immutability smoke test
+        env: *db_env
+        run: php tests/audit_immutability_smoke.php
