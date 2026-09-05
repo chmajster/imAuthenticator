@@ -15,6 +15,9 @@ RewriteRule ^admin/applications/([0-9]+)/config-with-secret\.json$ application-c
 RewriteCond %{QUERY_STRING} (^|&)created=1(&|$)
 RewriteRule ^admin/applications/([0-9]+)/?$ application-created.php?id=$1 [QSA,L]
 
+RewriteCond %{REQUEST_METHOD} =GET
+RewriteRule ^admin/applications/([0-9]+)/?$ application-detail.php?id=$1 [QSA,L]
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
