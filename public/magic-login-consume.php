@@ -1,0 +1,2 @@
+<?php
+declare(strict_types=1);use ImAuthenticator\Web;$services=require dirname(__DIR__).'/src/bootstrap.php';extract($services,EXTR_SKIP);try{$result=$magicLinks->consume((string)($_GET['token']??''));if(!$auth->loginVerifiedUser((int)$result['user_id'],1,'magic_link'))throw new RuntimeException('account_not_available');Web::redirect((string)$result['return_path']);}catch(Throwable){http_response_code(400);Web::page('Link nieważny','<section class="card narrow"><h1>Link jest nieważny lub wygasł</h1><a class="button" href="/login">Logowanie</a></section>');}
