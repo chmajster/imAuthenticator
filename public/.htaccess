@@ -1,6 +1,8 @@
 Options -Indexes
 RewriteEngine On
 
+RewriteRule ^oauth/token/?$ token.php [QSA,L]
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
