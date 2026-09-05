@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use ImAuthenticator\ApplicationAccessService;
 use ImAuthenticator\AuditLog;
+use ImAuthenticator\AuthService;
 use ImAuthenticator\Database;
 use ImAuthenticator\OidcService;
 
@@ -33,6 +34,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $db = new Database($config['db']);
 $audit = new AuditLog($db);
 $access = new ApplicationAccessService($db, $audit);
+$auth = new AuthService($db, $audit);
 $oidc = new OidcService($db, $access, $audit, $config);
 
-return compact('config', 'db', 'audit', 'access', 'oidc');
+return compact('config', 'db', 'audit', 'access', 'auth', 'oidc');
