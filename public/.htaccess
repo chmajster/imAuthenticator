@@ -1,8 +1,8 @@
 Options -Indexes
 RewriteEngine On
-
 RewriteRule ^oauth/authorize/?$ authorize.php [QSA,L]
 RewriteRule ^oauth/token/?$ token.php [QSA,L]
+RewriteRule ^oauth/userinfo/?$ userinfo.php [QSA,L]
 RewriteRule ^oauth/device_authorization/?$ oauth-device-authorization.php [QSA,L]
 RewriteRule ^oauth/par/?$ oauth-par.php [QSA,L]
 RewriteRule ^oauth/consent/?$ oauth-consent.php [QSA,L]
@@ -44,6 +44,7 @@ RewriteRule ^admin/access-requests/?$ admin-access-requests.php [QSA,L]
 RewriteRule ^admin/access-reviews/?$ admin-access-reviews.php [QSA,L]
 RewriteRule ^admin/scim/?$ admin-scim.php [QSA,L]
 RewriteRule ^admin/security/?$ security-dashboard.php [QSA,L]
+RewriteRule ^admin/role-security/?$ admin-role-security.php [QSA,L]
 RewriteRule ^admin/system/?$ admin-system.php [QSA,L]
 RewriteRule ^admin/legal/?$ admin-legal.php [QSA,L]
 RewriteRule ^admin/housekeeping/?$ admin-housekeeping.php [QSA,L]
@@ -58,25 +59,25 @@ RewriteRule ^admin/identity-providers/([0-9]+)/directory/?$ admin-directory.php?
 RewriteRule ^admin/dynamic-registration/?$ admin-dynamic-registration.php [QSA,L]
 RewriteRule ^admin/signing-keys/?$ admin-signing-keys.php [QSA,L]
 RewriteRule ^admin/service-accounts/?$ admin-service-accounts.php [QSA,L]
-
-RewriteCond %{REQUEST_METHOD} =GET
 RewriteRule ^admin/applications/?$ applications-list.php [QSA,L]
 RewriteRule ^admin/applications/new/?$ application-new.php [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/edit/?$ application-edit.php?id=$1 [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/users/?$ application-users.php?id=$1 [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/access-policy/?$ application-access-policy.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/security/?$ application-security-policy.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/administrators/?$ application-admins.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/oauth-security/?$ application-oauth-security.php?id=$1 [QSA,L]
+RewriteRule ^admin/applications/([0-9]+)/saml/?$ application-saml.php?id=$1 [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/rotate-secret/?$ client-secret-rotate.php?id=$1 [QSA,L]
 RewriteRule ^admin/applications/([0-9]+)/config-with-secret\.json$ application-config-secret.php?id=$1 [QSA,L]
 RewriteRule ^admin/users/([0-9]+)/applications/?$ user-applications.php?id=$1 [QSA,L]
 RewriteCond %{QUERY_STRING} (^|&)created=1(&|$)
 RewriteRule ^admin/applications/([0-9]+)/?$ application-created.php?id=$1 [QSA,L]
-RewriteCond %{REQUEST_METHOD} =GET
 RewriteRule ^admin/applications/([0-9]+)/?$ application-detail.php?id=$1 [QSA,L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 RewriteRule ^ index.php [QSA,L]
-
 <FilesMatch "^\.">
-    Require all denied
+ Require all denied
 </FilesMatch>
