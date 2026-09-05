@@ -42,6 +42,16 @@ final class AuthService
         return true;
     }
 
+    public function reauthenticatePassword(string $password, int $targetLevel = 3): bool
+    {
+        $user=$this->currentUser();if(!$user)return false;
+        $row=$this->db->one('SELECT password_hash FROM users WHERE id=?',[(int)$user['id']]);
+        if(!$row||!password_verify($password,(string)$row['password_hash'])){$this->audit->write('auth.step_up.failed','denied',(int)$user['id'],(int)$user['id'],null,'invalid password');return false;}
+        $this->setAuthenticationLevel($targetLevel);
+        $this->audit->write('auth.step_up.success','success',(int)$user['id'],(int)$user['id'],null,null,['method'=>'password','auth_level'=>(int)$_SESSION['auth_level']]);
+        return true;
+    }
+
     public function setAuthenticationLevel(int $level): void
     {
         $_SESSION['auth_level'] = max(1, min(3, $level));
