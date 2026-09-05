@@ -7,8 +7,14 @@ final class ConditionalAccessService
 {
     public function __construct(private Database $db, private ApplicationAccessService $access) {}
 
-    public function evaluate(int $userId, array $app, array $context = []): array
+    public function evaluate(int $userId, array|int $app, array $context = []): array
     {
+        if (is_int($app)) {
+            $loaded = $this->db->one('SELECT * FROM applications WHERE id=? AND enabled=1 AND deleted_at IS NULL', [$app]);
+            if (!$loaded) return $this->deny('application_not_available');
+            $app = $loaded;
+        }
+
         $reasons = [];
         $user = $this->db->one('SELECT is_admin FROM users WHERE id=?', [$userId]);
         if ((bool)($app['maintenance_mode'] ?? false) && !(bool)($user['is_admin'] ?? false)) return $this->deny('maintenance_mode');
