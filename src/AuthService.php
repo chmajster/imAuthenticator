@@ -12,10 +12,7 @@ final class AuthService
         $id = (int)($_SESSION['user_id'] ?? 0);
         if ($id < 1) return null;
         $user = $this->db->one('SELECT id,uuid,name,username,email,is_admin,break_glass,inactive_lock_exempt,enabled,lifecycle_status,account_starts_at,account_ends_at,last_login_at FROM users WHERE id=?', [$id]);
-        if (!$this->isActive($user, false)) {
-            $this->logout();
-            return null;
-        }
+        if (!$this->isActive($user, false)) { $this->logout(); return null; }
         $this->db->execute('UPDATE users SET last_activity_at=NOW() WHERE id=?', [$id]);
         return $user;
     }
@@ -42,13 +39,15 @@ final class AuthService
         return true;
     }
 
-    public function reauthenticatePassword(string $password, int $targetLevel = 3): bool
+    public function reauthenticatePassword(string $password): bool
     {
         $user=$this->currentUser();if(!$user)return false;
         $row=$this->db->one('SELECT password_hash FROM users WHERE id=?',[(int)$user['id']]);
-        if(!$row||!password_verify($password,(string)$row['password_hash'])){$this->audit->write('auth.step_up.failed','denied',(int)$user['id'],(int)$user['id'],null,'invalid password');return false;}
-        $this->setAuthenticationLevel($targetLevel);
-        $this->audit->write('auth.step_up.success','success',(int)$user['id'],(int)$user['id'],null,null,['method'=>'password','auth_level'=>(int)$_SESSION['auth_level']]);
+        if(!$row||!password_verify($password,(string)$row['password_hash'])){$this->audit->write('auth.reauthentication.failed','denied',(int)$user['id'],(int)$user['id'],null,'invalid password');return false;}
+        $_SESSION['auth_time']=time();
+        $_SESSION['password_reauth_at']=time();
+        $_SESSION['auth_level']=max(1,(int)($_SESSION['auth_level']??1));
+        $this->audit->write('auth.reauthentication.success','success',(int)$user['id'],(int)$user['id'],null,null,['method'=>'password']);
         return true;
     }
 
@@ -72,24 +71,17 @@ final class AuthService
     public function requireUser(): array
     {
         $user = $this->currentUser();
-        if (!$user) {
-            $return = $_SERVER['REQUEST_URI'] ?? '/dashboard';
-            header('Location: /login?return=' . rawurlencode($return));
-            exit;
-        }
+        if (!$user) { $return = $_SERVER['REQUEST_URI'] ?? '/dashboard'; header('Location: /login?return=' . rawurlencode($return)); exit; }
         return $user;
     }
 
     public function requireAdmin(): array
     {
         $user = $this->requireUser();
-        if (!(bool)$user['is_admin']) {
-            http_response_code(403);
-            exit('Brak uprawnień administratora.');
-        }
+        if (!(bool)$user['is_admin']) { http_response_code(403); exit('Brak uprawnień administratora.'); }
         if ((bool)($user['break_glass'] ?? false) && (int)($_SESSION['auth_level'] ?? 1) < 2) {
             $return=$_SERVER['REQUEST_URI']??'/admin/security';
-            header('Location: /login?reauth=1&return='.rawurlencode($return));
+            header('Location: /mfa/challenge?level=2&return='.rawurlencode($return));
             exit;
         }
         return $user;
@@ -101,6 +93,7 @@ final class AuthService
         $_SESSION['user_id']=$userId;
         $_SESSION['auth_level']=$authLevel;
         $_SESSION['auth_time']=time();
+        unset($_SESSION['password_reauth_at']);
         $this->db->execute('UPDATE users SET last_login_at=NOW(),last_activity_at=NOW() WHERE id=?',[$userId]);
     }
 

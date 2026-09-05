@@ -10,8 +10,8 @@ final class Web
     {
         $nav='';
         if($user){
-            $nav='<nav><a href="/dashboard">Moje aplikacje</a><a href="/applications/catalog">Katalog</a><a href="/account/passkeys">Passkeys</a><a href="/account/emails">E-maile</a><a href="/account/devices">Urządzenia</a><a href="/account/consents">Zgody</a><a href="/access-requests">Wnioski</a>';
-            if((bool)$user['is_admin'])$nav.='<a href="/admin/applications">Aplikacje</a><a href="/admin/access-requests">Approval</a><a href="/admin/access-reviews">Reviews</a><a href="/admin/identity-providers">Identity</a><a href="/admin/scim">SCIM</a><a href="/admin/security">Security</a><a href="/admin/system">System</a><a href="/admin/integration-tools">Integracje</a><a href="/admin/audit">Audit Log</a>';
+            $nav='<nav><a href="/dashboard">Moje aplikacje</a><a href="/applications/catalog">Katalog</a><a href="/account/mfa">MFA</a><a href="/account/passkeys">Passkeys</a><a href="/account/emails">E-maile</a><a href="/account/devices">Urządzenia</a><a href="/account/consents">Zgody</a><a href="/access-requests">Wnioski</a>';
+            if((bool)$user['is_admin'])$nav.='<a href="/admin/applications">Aplikacje</a><a href="/admin/access-requests">Approval</a><a href="/admin/access-reviews">Reviews</a><a href="/admin/identity-providers">Identity</a><a href="/admin/scim">SCIM</a><a href="/admin/security">Security</a><a href="/admin/system">System</a><a href="/admin/integration-tools">Integracje</a><a href="/admin/users/import">Import użytkowników</a><a href="/admin/audit">Audit Log</a>';
             $nav.='<form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="'.self::e(Security::csrfToken()).'"><button class="link">Wyloguj</button></form></nav>';
         }
         $impersonating=!empty($_SESSION['impersonation_actor_id']);

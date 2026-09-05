@@ -37,6 +37,12 @@ try{
  if($prompt==='login'||($maxAge!==null&&$maxAge>=0&&($authTime===0||time()-$authTime>$maxAge))){Web::redirect('/login?reauth=1&return='.rawurlencode($_SERVER['REQUEST_URI']??'/dashboard'));}
  $context=$auth->authenticationContext();
  if(!$access->hasAccess((int)$user['id'],$app,$context))$fail('access_denied','User is not allowed to access this application');
+ $decision=$conditional->evaluate((int)$user['id'],$app,$context);
+ if(!$decision['allowed']){
+   $action=(string)($decision['action']??'deny');
+   if($action==='mfa'||$action==='step_up'){$level=$action==='step_up'?3:2;Web::redirect('/mfa/challenge?level='.$level.'&return='.rawurlencode($_SERVER['REQUEST_URI']??'/dashboard'));}
+   $fail('access_denied',implode(',',(array)($decision['reasons']??['conditional_access_denied'])));
+ }
  $scopes=$oidc->allowedScopes((int)$app['id'],(string)($params['scope']??'openid'));
  if($consents->required($app)&&!$consents->hasConsent((int)$user['id'],(int)$app['id'],$scopes)){
    $consentToken=Security::randomToken(24);$_SESSION['pending_consents'][$consentToken]=['created_at'=>time(),'authorize_uri'=>$_SERVER['REQUEST_URI']??'/oauth/authorize','application_id'=>(int)$app['id'],'scopes'=>$scopes,'redirect_uri'=>$redirectUri,'state'=>$state];Web::redirect('/oauth/consent?token='.rawurlencode($consentToken));
