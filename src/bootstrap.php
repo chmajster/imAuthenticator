@@ -24,6 +24,9 @@ use ImAuthenticator\ScimService;
 use ImAuthenticator\SessionService;
 use ImAuthenticator\SigningKeyService;
 
+$vendorAutoload=dirname(__DIR__).'/vendor/autoload.php';
+if(is_file($vendorAutoload)) require_once $vendorAutoload;
+
 spl_autoload_register(static function (string $class): void {
     $prefix='ImAuthenticator\\';
     if(!str_starts_with($class,$prefix)) return;
