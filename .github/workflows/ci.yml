@@ -29,7 +29,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_mysql, openssl, json, iconv, mbstring, dom, zip
+          extensions: pdo_mysql, openssl, json, iconv, mbstring, dom, zip, xmlwriter
           coverage: none
       - name: PHP syntax
         run: find . -type f -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
@@ -70,3 +70,6 @@ jobs:
       - name: Tenant and runtime security smoke test
         env: *db_env
         run: php tests/tenant_runtime_smoke.php
+      - name: Scheduler and secret expiry smoke test
+        env: *db_env
+        run: php tests/scheduler_smoke.php
