@@ -14,6 +14,8 @@ use ImAuthenticator\Database;
 use ImAuthenticator\DeviceRiskService;
 use ImAuthenticator\DirectorySyncService;
 use ImAuthenticator\EventService;
+use ImAuthenticator\JwtService;
+use ImAuthenticator\OAuthAdvancedService;
 use ImAuthenticator\OidcService;
 use ImAuthenticator\PasskeyChallengeService;
 use ImAuthenticator\ScimService;
@@ -54,6 +56,8 @@ $clientSecrets=new ClientSecretService($db,$appAdmins,$audit,$events);
 $passkeys=new PasskeyChallengeService($db,$config,$audit);
 $scim=new ScimService($db,$access,$audit,$events);
 $directory=new DirectorySyncService($db,$audit,$events);
+$jwt=new JwtService($config);
+$oauthAdvanced=new OAuthAdvancedService($db,$access,$conditional,$audit,$jwt,$config);
 $oidc=new OidcService($db,$access,$conditional,$audit,$config);
 
-return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','oidc');
+return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','oauthAdvanced','oidc');
