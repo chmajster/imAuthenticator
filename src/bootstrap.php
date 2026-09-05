@@ -1,10 +1,15 @@
 <?php
 declare(strict_types=1);
 
+use ImAuthenticator\AccessRequestService;
 use ImAuthenticator\ApplicationAccessService;
+use ImAuthenticator\ApplicationAdminService;
 use ImAuthenticator\AuditLog;
 use ImAuthenticator\AuthService;
+use ImAuthenticator\ConditionalAccessService;
 use ImAuthenticator\Database;
+use ImAuthenticator\DeviceRiskService;
+use ImAuthenticator\EventService;
 use ImAuthenticator\OidcService;
 
 spl_autoload_register(static function (string $class): void {
@@ -16,25 +21,25 @@ spl_autoload_register(static function (string $class): void {
 
 $configFile = dirname(__DIR__) . '/config/config.php';
 if (!is_file($configFile)) {
-    if (PHP_SAPI !== 'cli') {
-        header('Location: /install.php');
-        exit;
-    }
+    if (PHP_SAPI !== 'cli') { header('Location: /install.php'); exit; }
     throw new RuntimeException('Application is not installed.');
 }
-
 $config = require $configFile;
 if (!is_array($config)) throw new RuntimeException('Invalid configuration.');
-
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 session_name((string)($config['session_name'] ?? 'imauthenticator_session'));
-session_set_cookie_params(['httponly' => true, 'secure' => $isHttps, 'samesite' => 'Lax', 'path' => '/']);
+session_set_cookie_params(['httponly'=>true,'secure'=>$isHttps,'samesite'=>'Lax','path'=>'/']);
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
 $db = new Database($config['db']);
 $audit = new AuditLog($db);
+$events = new EventService($db);
 $access = new ApplicationAccessService($db, $audit);
+$appAdmins = new ApplicationAdminService($db);
+$conditional = new ConditionalAccessService($db, $access);
 $auth = new AuthService($db, $audit);
+$risk = new DeviceRiskService($db);
+$requests = new AccessRequestService($db, $access, $appAdmins, $audit, $events);
 $oidc = new OidcService($db, $access, $audit, $config);
 
-return compact('config', 'db', 'audit', 'access', 'auth', 'oidc');
+return compact('config','db','audit','events','access','appAdmins','conditional','auth','risk','requests','oidc');
