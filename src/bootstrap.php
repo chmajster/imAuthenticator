@@ -20,6 +20,7 @@ use ImAuthenticator\OidcService;
 use ImAuthenticator\PasskeyChallengeService;
 use ImAuthenticator\ScimService;
 use ImAuthenticator\SessionService;
+use ImAuthenticator\SigningKeyService;
 
 spl_autoload_register(static function (string $class): void {
     $prefix='ImAuthenticator\\';
@@ -57,7 +58,8 @@ $passkeys=new PasskeyChallengeService($db,$config,$audit);
 $scim=new ScimService($db,$access,$audit,$events);
 $directory=new DirectorySyncService($db,$audit,$events);
 $jwt=new JwtService($config);
+$signingKeys=new SigningKeyService($db,$audit,$config,$configFile);
 $oauthAdvanced=new OAuthAdvancedService($db,$access,$conditional,$audit,$jwt,$config);
 $oidc=new OidcService($db,$access,$conditional,$audit,$config);
 
-return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','oauthAdvanced','oidc');
+return compact('config','db','audit','auditIntegrity','events','access','appAdmins','conditional','auth','risk','requests','reviews','sessions','clientSecrets','passkeys','scim','directory','jwt','signingKeys','oauthAdvanced','oidc');
