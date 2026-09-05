@@ -11,13 +11,10 @@ final class ApplicationAccessService
     {
         $app = is_array($application) ? $application : $this->db->one('SELECT * FROM applications WHERE id=? AND deleted_at IS NULL', [$application]);
         if (!$app || !(bool)$app['enabled']) return false;
-
         $user = $this->db->one('SELECT id,enabled,lifecycle_status,account_starts_at,account_ends_at FROM users WHERE id=?', [$userId]);
         if (!$this->userIsActive($user)) return false;
-
         $direct = $this->directUserOverride($userId, (int)$app['id']);
         if ($direct === false) return false;
-
         $allowed = $direct === true || match ($app['access_policy']) {
             'all' => true,
             'groups' => $this->groupAccess($userId, (int)$app['id']),
@@ -25,7 +22,6 @@ final class ApplicationAccessService
             'mixed' => $this->groupAccess($userId, (int)$app['id']) || $this->systemRoleAccess($userId, (int)$app['id']),
             default => false,
         };
-
         foreach ($this->matchingDynamicRules($userId, (int)$app['id'], $context) as $rule) {
             if ($rule['effect'] === 'deny') return false;
             if ($rule['effect'] === 'allow') $allowed = true;
@@ -33,10 +29,7 @@ final class ApplicationAccessService
         return $allowed;
     }
 
-    public function directUserAccess(int $userId, int $applicationId): bool
-    {
-        return $this->directUserOverride($userId, $applicationId) === true;
-    }
+    public function directUserAccess(int $userId, int $applicationId): bool { return $this->directUserOverride($userId, $applicationId) === true; }
 
     public function matchingDynamicEffects(int $userId, int $applicationId, array $context = []): array
     {
@@ -135,7 +128,7 @@ final class ApplicationAccessService
 
     private function matchesTime(array $condition): bool
     {
-        $tz = new \DateTimeZone((string)($condition['timezone'] ?? 'UTC'));
+        try { $tz = new \DateTimeZone((string)($condition['timezone'] ?? 'UTC')); } catch (\Throwable) { return false; }
         $now = new \DateTimeImmutable('now', $tz);
         $days = $condition['days'] ?? [];
         if (is_array($days) && $days !== [] && !in_array((int)$now->format('N'), array_map('intval', $days), true)) return false;
@@ -154,20 +147,20 @@ final class ApplicationAccessService
             if (!is_array($rule)) continue;
             $results[] = $this->matchesCondition($userId, (string)($rule['type'] ?? ''), (array)($rule['condition'] ?? []), $context);
         }
+        if ($results === []) return false;
         return (string)($condition['operator'] ?? 'and') === 'or' ? in_array(true, $results, true) : !in_array(false, $results, true);
     }
 
     public function rolesForUser(int $userId, int $applicationId): array
     {
-        $rows = $this->db->all('SELECT r.name FROM app_user_roles ur JOIN app_roles r ON r.id=ur.app_role_id AND r.application_id=ur.application_id WHERE ur.application_id=? AND ur.user_id=? ORDER BY r.name', [$applicationId,$userId]);
-        return array_column($rows, 'name');
+        return array_column($this->db->all('SELECT r.name FROM app_user_roles ur JOIN app_roles r ON r.id=ur.app_role_id AND r.application_id=ur.application_id WHERE ur.application_id=? AND ur.user_id=? ORDER BY r.name', [$applicationId,$userId]), 'name');
     }
 
     public function grantUser(int $applicationId, int $userId, int $actorUserId, ?string $validFrom = null, ?string $validUntil = null, string $source = 'manual'): void
     {
         $allowedSources = ['manual','request','dynamic','scim','sync','system'];
         if (!in_array($source, $allowedSources, true)) $source = 'manual';
-        $this->db->execute('INSERT INTO application_users(application_id,user_id,enabled,valid_from,valid_until,grant_source,created_by) VALUES(?,?,1,?,?,?,?,?) ON DUPLICATE KEY UPDATE enabled=1,valid_from=VALUES(valid_from),valid_until=VALUES(valid_until),grant_source=VALUES(grant_source),revoked_at=NULL,revoke_reason=NULL,created_by=VALUES(created_by),created_at=CURRENT_TIMESTAMP', [$applicationId,$userId,$validFrom,$validUntil,$source,$actorUserId]);
+        $this->db->execute('INSERT INTO application_users(application_id,user_id,enabled,valid_from,valid_until,grant_source,created_by) VALUES(?,?,1,?,?,?,?) ON DUPLICATE KEY UPDATE enabled=1,valid_from=VALUES(valid_from),valid_until=VALUES(valid_until),grant_source=VALUES(grant_source),revoked_at=NULL,revoke_reason=NULL,created_by=VALUES(created_by),created_at=CURRENT_TIMESTAMP', [$applicationId,$userId,$validFrom,$validUntil,$source,$actorUserId]);
         $this->audit->write('application.user.granted', 'success', $actorUserId, $userId, $applicationId, null, ['valid_from'=>$validFrom,'valid_until'=>$validUntil,'source'=>$source]);
     }
 
