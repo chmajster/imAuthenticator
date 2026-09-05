@@ -58,12 +58,12 @@ final class OidcService
 
     public function exchangeAuthorizationCode(array $input, ?string $authorizationHeader): array
     {
-        [$app, $clientId] = $this->authenticateClient($input, $authorizationHeader);
+        [$app] = $this->authenticateClient($input, $authorizationHeader);
         $code = (string)($input['code'] ?? '');
         $redirectUri = (string)($input['redirect_uri'] ?? '');
         if ($code === '' || !$this->redirectAllowed((int)$app['id'], $redirectUri)) throw new RuntimeException('invalid_grant');
 
-        return $this->db->transaction(function () use ($app, $clientId, $input, $code, $redirectUri): array {
+        return $this->db->transaction(function () use ($app, $input, $code, $redirectUri): array {
             $row = $this->db->one('SELECT * FROM oauth_authorization_codes WHERE code_hash=? FOR UPDATE', [Security::tokenHash($code)]);
             if (!$row || (int)$row['application_id'] !== (int)$app['id'] || $row['redirect_uri'] !== $redirectUri || $row['used_at'] !== null || strtotime($row['expires_at']) < time()) {
                 throw new RuntimeException('invalid_grant');
@@ -107,6 +107,23 @@ final class OidcService
             $this->db->execute('UPDATE oauth_refresh_tokens SET revoked_at=NOW(),replaced_by_hash=? WHERE id=?', [Security::tokenHash($new['refresh_token']), (int)$row['id']]);
             return $new;
         });
+    }
+
+    public function clientCredentials(array $input, ?string $authorizationHeader): array
+    {
+        [$app] = $this->authenticateClient($input, $authorizationHeader);
+        if ($app['integration_type'] !== 'client_credentials' || $app['client_type'] !== 'confidential') {
+            throw new RuntimeException('unauthorized_client');
+        }
+        $scopes = $this->allowedScopes((int)$app['id'], (string)($input['scope'] ?? 'roles'));
+        $token = Security::randomToken(48);
+        $this->db->execute(
+            'INSERT INTO oauth_access_tokens(token_hash,application_id,user_id,scopes,expires_at) VALUES(?,?,NULL,?,DATE_ADD(NOW(),INTERVAL 1 HOUR))',
+            [Security::tokenHash($token), (int)$app['id'], implode(' ', $scopes)]
+        );
+        $this->db->execute('UPDATE applications SET last_used_at=NOW() WHERE id=?', [(int)$app['id']]);
+        $this->audit->write('oauth.client_credentials.success', 'success', null, null, (int)$app['id']);
+        return ['token_type'=>'Bearer','expires_in'=>3600,'access_token'=>$token,'scope'=>implode(' ', $scopes)];
     }
 
     public function userInfo(string $bearer): array
