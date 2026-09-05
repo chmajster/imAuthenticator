@@ -77,14 +77,14 @@ CREATE TABLE user_import_jobs (
 CREATE TABLE user_import_rows (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   import_job_id BIGINT UNSIGNED NOT NULL,
-  row_number INT UNSIGNED NOT NULL,
+  source_row INT UNSIGNED NOT NULL,
   payload_json JSON NOT NULL,
   status ENUM('pending','created','updated','duplicate','failed','skipped') NOT NULL DEFAULT 'pending',
   user_id BIGINT UNSIGNED NULL,
   message VARCHAR(500) NULL,
   CONSTRAINT fk_import_row_job FOREIGN KEY(import_job_id) REFERENCES user_import_jobs(id) ON DELETE CASCADE,
   CONSTRAINT fk_import_row_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_import_row_job(import_job_id,status,row_number)
+  INDEX idx_import_row_job(import_job_id,status,source_row)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE application_category_assignments (
