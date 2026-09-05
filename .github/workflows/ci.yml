@@ -58,3 +58,6 @@ jobs:
       - name: Advanced OAuth and API key smoke test
         env: *db_env
         run: php tests/oauth_advanced_smoke.php
+      - name: WebAuthn runtime stack smoke test
+        env: *db_env
+        run: php tests/webauthn_stack_smoke.php
