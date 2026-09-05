@@ -28,12 +28,17 @@ final class AuthService
             $this->audit->write('auth.login.failed', 'denied', null, $user ? (int)$user['id'] : null, null, 'invalid credentials or inactive account');
             return false;
         }
-        session_regenerate_id(true);
-        $_SESSION['user_id'] = (int)$user['id'];
-        $_SESSION['auth_level'] = 1;
-        $_SESSION['auth_time'] = time();
-        $this->db->execute('UPDATE users SET last_login_at=NOW(),last_activity_at=NOW() WHERE id=?', [(int)$user['id']]);
-        $this->audit->write('auth.login.success', 'success', (int)$user['id'], (int)$user['id']);
+        $this->establishSession((int)$user['id'],1);
+        $this->audit->write('auth.login.success', 'success', (int)$user['id'], (int)$user['id'], null, null, ['method'=>'password']);
+        return true;
+    }
+
+    public function loginVerifiedUser(int $userId, int $authLevel = 2, string $method = 'passkey'): bool
+    {
+        $user=$this->db->one('SELECT * FROM users WHERE id=?',[$userId]);
+        if(!$this->isActive($user))return false;
+        $this->establishSession($userId,max(1,min(3,$authLevel)));
+        $this->audit->write('auth.login.success','success',$userId,$userId,null,null,['method'=>$method,'auth_level'=>(int)$_SESSION['auth_level']]);
         return true;
     }
 
@@ -73,6 +78,15 @@ final class AuthService
             exit('Brak uprawnień administratora.');
         }
         return $user;
+    }
+
+    private function establishSession(int $userId,int $authLevel): void
+    {
+        session_regenerate_id(true);
+        $_SESSION['user_id']=$userId;
+        $_SESSION['auth_level']=$authLevel;
+        $_SESSION['auth_time']=time();
+        $this->db->execute('UPDATE users SET last_login_at=NOW(),last_activity_at=NOW() WHERE id=?',[$userId]);
     }
 
     private function isActive(?array $user): bool
